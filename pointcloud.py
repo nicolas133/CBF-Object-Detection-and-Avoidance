@@ -3,6 +3,8 @@ import rospy
 import math
 from geometry_msgs.msg import Point32 
 from sensor_msgs.msg import PointCloud #msg.points is a list of gemotrty_msgs
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 def PC_sub(): 
@@ -20,10 +22,19 @@ def Cloudcallback(msg):
         print("-------------------------------------")
         point_list=[]
 
+        x_list = []
+        y_list = []
+        inverted_ylist = []
+
         for point in msg.points: 
+           
             x=point.x
             y=point.y
             point_list.append((round(x, 3), round(y, 3)))
+            x_list.append(round(x, 3))
+            y_list.append(round(y, 3))
+            inverted_y = -1 * y
+            inverted_ylist.append(round(inverted_y, 3))
             #print(point_list)
         #if len(point_list) > 0:
          #   print()
@@ -40,7 +51,12 @@ def Cloudcallback(msg):
         #        print(" ")
   	#    else:
         #        print point_list[i],
-	print(point_list)
+	#print(point_list)
+	#inverted_xlist = -1 * x_list
+        plt.scatter(inverted_ylist, x_list)
+        plt.savefig("mypointclouddata.jpg")
+        plt.show()
+        
         print(" ")
         print("-------------------------------------")
         
