@@ -1,0 +1,56 @@
+<?xml version='1.0'?>
+
+<launch>
+
+    <!-- Define robot type and lidar type arguments -->
+    <arg name="robot_type" value="$(env ROBOT_TYPE)" doc="robot_type [X1,X3,X3plus,R2,X7]"/>
+    <arg name="lidar_type" value="$(env RPLIDAR_TYPE)" doc="lidar_type [a1,4ROS]"/>
+    <arg name="nav_use_rotvel" default="true"/>
+
+    <!-- Robot description parameter -->
+    <param name="robot_description" command="$(find xacro)/xacro --inorder $(find yahboomcar_description)/urdf/yahboomcar_R2.urdf.xacro" />
+
+    <!-- Start AMCL node -->
+    <include file="$(find yahboomcar_nav)/launch/library/amcl.launch" />
+
+    <!-- Path planning node -->
+    <include file="$(find yahboomcar_nav)/launch/library/move_base.launch" />
+
+    <!-- Lidar setup -->
+    <include file="$(find rplidar_ros)/launch/rplidar.launch" if="$(eval arg('lidar_type') == 'a1')"/>
+    <include file="$(find ydlidar_ros_driver)/launch/TG.launch" if="$(eval arg('lidar_type') == '4ROS')"/>
+
+    <!-- USB camera setup -->
+    <include file="$(find usb_cam)/launch/usb_cam-test.launch"/>
+
+    <!-- Bringup launch -->
+    <include file="$(find yahboomcar_bringup)/launch/bringup.launch">
+        <arg name="nav_use_rotvel" value="$(arg nav_use_rotvel)"/>
+    </include>
+
+    <!-- Coordinate transformations -->
+    <node pkg="tf" type="static_transform_publisher" name="base_link_to_camera"
+          args="0.0484 0 0.10403 0 0 0 /base_link /usb_cam 30" if="$(eval arg('robot_type') == 'R2')"/>
+    <node pkg="tf" type="static_transform_publisher" name="base_link_to_laser"
+          args="0.0435 5.258E-05 0.11 0 0 0 /base_link /laser 30" if="$(eval arg('lidar_type') == '4ROS')"/>
+    <node pkg="tf" type="static_transform_publisher" name="base_link_to_laser"
+          args="0.0435 5.258E-05 0.11 3.14 0 0 /base_link /laser 30" if="$(eval arg('lidar_type') == 'a1')"/>
+    <node pkg="tf" type="static_transform_publisher" name="camera_link_to_laser"
+          args="0 0 0 0 0 0 /camera_link /laser 30" if="$(eval arg('robot_type') == 'R2')"/>
+
+    <!-- Astra Laser and Yahboom -->
+    <include file="$(find astra_camera)/launch/astrapro.launch"/>
+    <include file="$(find yahboomcar_nav)/launch/library/depthimage_to_laserscan.launch">
+        <arg name="scan_topic" default="scan"/>
+    </include>
+
+    <!-- Gmapping setup -->
+    <include file="$(find yahboomcar_nav)/launch/library/gmapping.launch"/>
+
+    <!-- Additional application launch -->
+    <include file="$(find yahboomcar_nav)/launch/library/app.launch"/>
+
+    <!-- RViz view always -->
+    <node pkg="rviz" type="rviz" name="rviz" required="true" args="-d $(find yahboomcar_nav)/rviz/yahboomcar_map.rviz"/>
+
+</launch>
