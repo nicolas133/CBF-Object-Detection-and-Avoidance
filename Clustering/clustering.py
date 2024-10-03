@@ -27,7 +27,7 @@ def filtering(cloud):
 
  
    
-  print("post_booty_box",filtered_cloud)
+  print("post_bounding_box",filtered_cloud)
 
   objects_cloud = filtered_cloud
  
@@ -54,7 +54,7 @@ def db_scan(cloud, tolerance, min_size, max_size,debug=False):
 
   # print only when debug 
   if debug == True:
-      print("There are a total number of:", {len(clusters)}," CLUSTER FUCKERS")
+      print("There are a total number of:", {len(clusters)}," CLUSTERS")
   
       print(clusters) 
   return clusters
