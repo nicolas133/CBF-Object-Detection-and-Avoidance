@@ -136,15 +136,17 @@ def pointcloud_to_pointcloud2(pointcloud_msg):
     points = []
     for point in pointcloud_msg.points:
         x, y, z = point.x, point.y, point.z
-        # Set default color to white (255, 255, 255)
-        r, g, b = 255, 255, 255
-        rgb = (int(r) << 16) | (int(g) << 8) | int(b)
+        rgb = 0xFFFFFF  # Set RGB to white
         rgb_float = struct.unpack('f', struct.pack('I', rgb))[0]
+      # expects a Float32 
+      # first we need to pack python val to 32bit int turn
+      # next we unpack and turn into float
         points.append([x, y, z, rgb_float])
 
     # Create PointCloud2 message
     pcl2_msg = point_cloud2.create_cloud(header, fields, points)
     return pcl2_msg
+
 
 if __name__ == '__main__':
   print("enterd main of clustering")
