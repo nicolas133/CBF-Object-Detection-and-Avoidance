@@ -1,30 +1,50 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from pcl_helper import *
 from filtering_helper import *
+from sensor_msgs.msg import PointCloud, PointCloud2
+from sensor_msgs import point_cloud2
+import struct
+import matplotlib.pyplot as plt
+import numpy as np
+import matplotlib.cm as cm
+from scipy.spatial import ConvexHull
+from sensor_msgs.msg import PointField
 
 
-# This pipeline separates the objects in the table from the given scene
-def split_cloud(cloud):
 
-  # Downsample the cloud as high resolution which comes with a computation cost
+
+def filtering(cloud):
+
+  # Downsample the cloud to lower resolution to make algo run faster 
   downsampled_cloud = do_voxel_grid_filter(point_cloud = cloud, LEAF_SIZE = 0.01)
+  print("After voxel grid filter:", downsampled_cloud.size)
 
-  # Get only information in our region of interest as we don't care about the other parts
+
+  #Spatial RANGE FILTER-implement  
   filtered_cloud = do_passthrough_filter(point_cloud = downsampled_cloud, 
-                                         name_axis = 'z', min_axis = 0.6, max_axis = 1.1)
+                                         name_axis = 'x', min_axis = -1, max_axis = 1.0)
 
-  # Separate the table from everything else
-  table_cloud, objects_cloud = do_ransac_plane_segmentation(filtered_cloud, max_distance = 0.01)
+  filtered_cloud = do_passthrough_filter(point_cloud = downsampled_cloud, 
+                                         name_axis = 'y', min_axis = -1, max_axis = 1)
+  #print("After passthrough filter:", filtered_cloud.size)
 
-  return objects_cloud, table_cloud
+ 
+   
+  print("After Bounding Box",filtered_cloud)
+
+  objects_cloud = filtered_cloud
+ 
+# cloud is an array with each cell having three numbers corresponding to x, y, z position
+# Returns list of [x, y, z, color]
+
+  return objects_cloud 
 
 
-# This pipeline returns groups of indices for each cluster of points
-# Each cluster of indices is grouped as belonging to the same object
-# This uses DBSCAN Algorithm Density-Based Spatial Clustering of Applications with noise
-# Aka Eucledian clustering to group points 
-def get_clusters(cloud, tolerance, min_size, max_size):
+
+def db_scan(cloud, tolerance, min_size, max_size,debug=False):
+
+  # 'clusters' is a list of lists, with each incidiy representing the cluster it belongs to 
 
   tree = cloud.make_kdtree()
   extraction_object = cloud.make_EuclideanClusterExtraction()
@@ -33,16 +53,53 @@ def get_clusters(cloud, tolerance, min_size, max_size):
   extraction_object.set_MinClusterSize(min_size)
   extraction_object.set_MaxClusterSize(max_size)
   extraction_object.set_SearchMethod(tree)
+  cluster_indices = extraction_object.Extract()
+  
+  # Get the X and Y data points for the cluster
+  clusters = []
+  points = cloud.to_array()
+  
+  # Run through the indices and get the X, Y coordinates of the points
+  for indices in cluster_indices:
+      cluster_points = points[indices][:, :2]
+      clusters.append(cluster_points)
 
-  # Get clusters of indices for each cluster of points, each clusterbelongs to the same object
-  # 'clusters' is effectively a list of lists, with each list containing indices of the cloud
-  clusters = extraction_object.Extract()
-  return clusters
+  # print only when debug 
+  if debug == True:
+      print("There are a total number of:", {len(clusters)}," Clusters")
+  
+      print(clusters)
+  
+  # Create the graph for the three clusters and save the figure
+  colors = cm.viridis(np.linspace(0, 1, len(clusters)))
+  for i, cluster in enumerate(clusters):
+      plt.scatter(cluster[:,0], cluster[:,1], color = colors[i], alpha=0.6)
+  
+  plt.savefig('dbscan_clusters.png')
+  
+  return cluster_indices
+
+
+def visualize_convex_hull(cloud, clusters):
+	colormap = cm.get_cmap('viridis', len(clusters))
+	for i, cluster_indices in enumerate(clusters):
+		
+		cluster_points = np.array([cloud[index] for index in cluster_indices])
+		plt.scatter(cluster_points[:,0], cluster_points[:,1], label=f'Cluster {i}', s = 10)
+		
+		min_x, min_y = cluster_points[:, 0].min(), cluster_points[:,1].min()	
+		max_x, max_y = cluster_points[:, 0].max(), cluster_points[:,1].max()	
+
+		rectangle = np.array([[min_x, min_y], [max_x, min_y], [max_x, max_y], [min_x, max_y]])	
+		
+
+		plt.fill(rectangle[:,0], rectangle[:,1],color = colormap(i), linewidth=2, label=f'Cluster {i}')
+	plt.savefig('Shape_Wrapping.png')
+	return
   
 
 # clusters is a list of lists each list containing indices of the cloud
-# cloud is an array with each cell having three numbers corresponding to x, y, z position
-# Returns list of [x, y, z, color]
+
 def get_colored_clusters(clusters, cloud):
   
   # Get a random unique colors for each object
@@ -65,19 +122,29 @@ def get_colored_clusters(clusters, cloud):
 # Callback function for your Point Cloud Subscriber
 def pcl_callback(pcl_msg):
 
-  # Convert ROS msg to PCL data
-  cloud = ros_to_pcl(pcl_msg) 
+  print("entered pcl_callback")
 
-  # Extract objects and table from the scene
-  objects_cloud, table_cloud = split_cloud(cloud) 
+  pcl2_msg = pointcloud_to_pointcloud2(pcl_msg) #convert to pcl2
+
+  # Convert ROS msg to PCL data
+  cloud = ros_to_pcl(pcl2_msg) 
+
+  frame_id = pcl2_msg.header.frame_id
+
+  print("Initial__cloud size:", cloud.size)
+
+
+  # IMPLEMENT BOUNDING BOX AND LOWER RESOLUTION 
+  objects_cloud = filtering(cloud) 
 
   # Get a point cloud of only the position information without color information
   colorless_cloud = XYZRGB_to_XYZ(objects_cloud)
   
-  # Get groups of indices for each cluster of points
-  # Each group of points belongs to the same object
+
   # This is effectively a list of lists, with each list containing indices of the cloud
-  clusters = get_clusters(colorless_cloud, tolerance = 0.05, min_size = 100, max_size = 1500)
+  clusters = db_scan(colorless_cloud, tolerance = 0.05, min_size = 20, max_size = 1500,debug=True)
+  
+  #visualize_convex_hull(cloud, clusters)
 
   # Assign a unique color float for each point (x, y, z)
   # Points with the same color belong to the same cluster
@@ -88,27 +155,46 @@ def pcl_callback(pcl_msg):
   clusters_cloud.from_list(colored_points)
 
   # Convert pcl data to ros messages
-  objects_msg = pcl_to_ros(objects_cloud)
-  table_msg = pcl_to_ros(table_cloud)
-  clusters_msg = pcl_to_ros(clusters_cloud)
+ 
+  clusters_msg = pcl_to_ros(clusters_cloud, frame_id)
 
   # Publish ROS messages
-  objects_publisher.publish(objects_msg)
-  table_publisher.publish(table_msg)
   clusters_publisher.publish(clusters_msg)
  
+def pointcloud_to_pointcloud2(pointcloud_msg):
+    header = pointcloud_msg.header
+
+    # Define the fields for PointCloud2, including 'rgb'
+    fields = [
+        PointField('x', 0, PointField.FLOAT32, 1),
+        PointField('y', 4, PointField.FLOAT32, 1),
+        PointField('z', 8, PointField.FLOAT32, 1),
+        PointField('rgb', 12, PointField.FLOAT32, 1),
+    ]
+
+    # Create a list of points with default RGB values
+    points = []
+    for point in pointcloud_msg.points:
+        x, y, z = point.x, point.y, point.z
+        # Set default color to white (255, 255, 255)
+        r, g, b = 255, 255, 255
+        rgb = (int(r) << 16) | (int(g) << 8) | int(b)
+        rgb_float = struct.unpack('f', struct.pack('I', rgb))[0]
+        points.append([x, y, z, rgb_float])
+
+    # Create PointCloud2 message
+    pcl2_msg = point_cloud2.create_cloud(header, fields, points)
+    return pcl2_msg
 
 if __name__ == '__main__':
-
+  print("enterd main of clustering")
   # ROS node initialization
   rospy.init_node('clustering', anonymous = True)
 
-  # Create Subscribers
-  subscriber = rospy.Subscriber("/sensor_stick/point_cloud", pc2.PointCloud2, pcl_callback, queue_size = 1)
     
+  subscriber = rospy.Subscriber("/point_cloud", PointCloud, pcl_callback, queue_size = 1)
+
   # Create Publishers
-  objects_publisher = rospy.Publisher("/pcl_objects", PointCloud2, queue_size = 1)
-  table_publisher = rospy.Publisher("/pcl_table", PointCloud2, queue_size = 1)
   clusters_publisher = rospy.Publisher("/pcl_cluster", PointCloud2, queue_size = 1)
   
   # Initialize color_list
