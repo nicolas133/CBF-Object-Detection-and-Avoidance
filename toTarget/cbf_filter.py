@@ -32,7 +32,10 @@ class CBF_safetyFilter:
         #rospy.Subscriber('/pid_y', Float64, self.callback_y)
 
         # Subscribe to the odom output
-        rospy.Subscriber('/odom', Odometry, self.callback_odom) 
+        rospy.Subscriber('/odom', Odometry, self.callback_odom)
+
+        #Subscribe to clustering_script
+        rospy.Subscriber('/WrappedObj',Twist,self.callback_wrapped)
 
         # Publishes info back to sensors
         self.velpub = rospy.Publisher('/cmd_vel',Twist,queue_size=1)
@@ -63,6 +66,13 @@ class CBF_safetyFilter:
         self.current_Vy = msg.twist.twist.linear.y
         
         self.optimizer()
+
+
+    def callback_wrapped(self,msg):
+        self.centroid_x= msg.linear.x
+        self.centroid_y= msg.linear.y
+        self.radius=msg.linear.z
+
 
     def optimizer(self):
         ####Define First  Object#####
