@@ -9,6 +9,11 @@ from numpy import array, dot
 from qpsolvers import solve_qp
 from CBFHelperFunctions import *
 from std_msgs.msg import Float64
+from geometry_msgs.msg import Pose, PoseArray
+
+centroid_xlist = np.zeros(20)
+centroid_ylist = np.zeros(20)
+radius_list = np.zeros(20)
 
 
 # Function that converts quaternions to euler and returns yaw, which is the only desired value
@@ -31,11 +36,14 @@ class CBF_safetyFilter:
         # Subscribe to the pid output
         #rospy.Subscriber('/pid_y', Float64, self.callback_y)
 
+
+        rospy.Subscriber('/WrappedObjs', PoseArray, self.callback_wrapped) 
+     
+
         # Subscribe to the odom output
         rospy.Subscriber('/odom', Odometry, self.callback_odom)
+	
 
-        #Subscribe to clustering_script
-        rospy.Subscriber('/WrappedObj',Twist,self.callback_wrapped)
 
         # Publishes info back to sensors
         self.velpub = rospy.Publisher('/cmd_vel',Twist,queue_size=1)
@@ -49,6 +57,10 @@ class CBF_safetyFilter:
 
         # Initializes finished value to 0, will change to 1 once robot has reached final waypoint
         self.finished = 0
+
+
+
+	
 
     def callback_x(self, msg):
         self.pid_x = msg.linear.x
@@ -67,16 +79,30 @@ class CBF_safetyFilter:
         
         self.optimizer()
 
-
     def callback_wrapped(self,msg):
-        self.centroid_x= msg.linear.x
-        self.centroid_y= msg.linear.y
-        self.radius=msg.linear.z
 
+        centroid_xlist = np.zeros(20)
+        centroid_ylist = np.zeros(20)
+        radius_list = np.zeros(20)
+
+        #print(msg)
+        for i, pose in enumerate(msg.poses):
+             x = pose.position.x
+             y = pose.position.y
+             z = pose.position.z
+             #print(f"Pose {i} x = {x} y = {y} z = {z}")
+             #print(x)
+             centroid_xlist[i] = x
+             centroid_ylist[i] = y
+             radius_list[i] = z
+	#self.centroid_x=
+	#self.centroid_y=
+	#self.radius=
+        #print(centroid_xlist)
 
     def optimizer(self):
         ####Define First  Object#####
-        circular_obstacle = obstacle(R=0.5,x=[1.5,0]) 
+        circular_obstacle = obstacle(R=radius_list[0],x=[centroid_xlist[0],centroid_ylist[0]]) 
 
         # Defines an array of the current coordinates of the car
         coords = np.array([self.current_pose.position.x, self.current_pose.position.y])
@@ -87,8 +113,8 @@ class CBF_safetyFilter:
         # Define gradient based on current coordinates
         Grad= circular_obstacle.Grad(coords)
 
-        print("coords: " + str(coords))
-        print("h val: " + str(hvalue))
+        #print("coords: " + str(coords))
+        #print("h val: " + str(hvalue))
         #print("grad: " + str(Grad))
 
         # Defines current coordinates
