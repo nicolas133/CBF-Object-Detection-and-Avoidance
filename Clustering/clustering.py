@@ -45,7 +45,7 @@ def filtering(cloud):
 
 def db_scan(cloud, tolerance, min_size, max_size,debug=False):
 
-  # 'clusters' is a list of lists, with each incidiy representing the cluster it belongs to 
+  # 'clusters' is a list of lists, with each index representing the cluster it belongs to 
 
   tree = cloud.make_kdtree()
   extraction_object = cloud.make_EuclideanClusterExtraction()
