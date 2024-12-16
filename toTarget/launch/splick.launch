@@ -1,0 +1,16 @@
+<launch>
+    <!-- Launch Lidar and other important car drivers -->
+    <include file="$(find yahboomcar_nav)/launch/sick.launch" />
+
+    <!-- Launch PID controller -->
+    <node name="pid_controller" pkg="toTarget" type="PID_communicator.py" output="screen" launch-prefix="xterm -e" />
+
+    <!-- Launch Clustering and Wrapping algorithm -->
+    <node name="clustering_node" pkg="sensor_stick" type="test.py" output="screen" launch-prefix="xterm -e" />
+
+    <!-- Launch CBF filter with delay -->
+    <node name="cbf_filter" pkg="toTarget" type="cbf_filter.py" output="screen" launch-prefix="xterm -e">
+        <param name="delay" value="5.0" />
+    </node>
+</launch>
+
