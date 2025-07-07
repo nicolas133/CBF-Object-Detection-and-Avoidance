@@ -1,7 +1,0 @@
-nav_msgs/Odometry odom_req
-
----
-
-nav_msgs/Odometry odom_rec
-
-

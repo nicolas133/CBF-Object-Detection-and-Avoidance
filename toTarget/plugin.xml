@@ -1,7 +1,0 @@
-<library path="lib/libpid_local_planner">
-    <!--name package_name/PluginName -->
-    <!--type namespace/Classname --->
-    <class name="pid_local_planner/PIDLocalPlanner" type="pid_local_planner::PIDLocalPlanner" base_class_type="nav_core::BaseLocalPlanner"> 
-        <description> simple pid local planner  </description>
-    </class>
-</library>
